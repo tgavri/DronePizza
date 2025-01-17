@@ -1,0 +1,37 @@
+name: Maven Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # 4.1.7
+
+      - name: Set up JDK
+        uses: actions/setup-java@2dfa2011c5b2a0f1489bf9e433881c92c1631f88 # 4.3.0
+        with:
+          java-version: "21"
+          distribution: "temurin"
+
+      - name: Cache Maven dependencies
+        uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2
+        with:
+          path: |
+            ~/.m2/repository
+            target
+          key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            maven-${{ runner.os }}-
+
+      - name: Make mvnw executable
+        run: chmod +x ./mvnw
+
+      - name: Run tests
+        run: mvn test
