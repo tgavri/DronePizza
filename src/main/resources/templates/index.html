@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DronePizza Delivery Management</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        .img {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .status-badge {
+            font-weight: bold;
+            padding: 0.25em 0.5em;
+            border-radius: 0.25rem;
+        }
+        .status-i-drift {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .status-ej-i-drift {
+            background-color: #fff3cd;
+            color: #c10000;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 90%;
+            max-width: 2000px;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #dee2e6;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+        }
+
+        .close {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: red;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .modal-body {
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+<div class="container mt-5">
+    <h1 class="mb-4">DronePizza Delivery Management 🍕</h1>
+
+    <div class="row mb-3">
+        <div class="col">
+            <button id="droneOverviewBtn" class="btn btn-primary">Drone Overview</button>
+            <button id="simulateOrderBtn" class="btn btn-success">Simulate New Order</button>
+        </div>
+    </div>
+
+    <div id="droneModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Drone Overview</h2>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <button id="createDroneBtn" class="btn btn-primary mb-3">Create New Drone</button>
+                <table class="table table-striped">
+                    <thead>
+                    <tr>
+                        <th>Drone ID</th>
+                        <th>Status</th>
+                        <th>Station</th>
+                        <th>Unique ID</th>
+                        <th>Orders Fulfilled</th>
+                        <th>Current Orders</th>
+                        <th>Actions</th>
+                    </tr>
+                    </thead>
+                    <tbody id="dronesList">
+
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <h2>Outstanding Orders</h2>
+    <table class="table table-striped">
+        <thead>
+        <tr>
+            <th>Delivery ID</th>
+            <th>Address</th>
+            <th>Expected Delivery</th>
+            <th>Order info</th>
+            <th>Assigned Drone ID</th>
+            <th>Status</th>
+        </tr>
+        </thead>
+        <tbody id="undeliveredList">
+        </tbody>
+    </table>
+
+    <h2>Delivered Orders</h2>
+    <table class="table table-striped">
+        <thead>
+        <tr>
+            <th>Delivery ID</th>
+            <th>Address</th>
+            <th>Expected Delivery</th>
+            <th>Actual Delivery</th>
+            <th>Pizza</th>
+            <th>Drone ID</th>
+        </tr>
+        </thead>
+        <tbody id="deliveredList">
+
+        </tbody>
+    </table>
+    <br><br><br><div class="img"><img src="/logo.png"/></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+    $(document).ready(function() {
+        fetchData();
+        setInterval(fetchData, 60000);
+
+        // Event listeners
+        $('#createDroneBtn').click(createDrone);
+        $('#simulateOrderBtn').click(simulateOrder);
+        $('#droneOverviewBtn').click(openDroneModal);
+
+        // Drone "popup"
+        var modal = document.getElementById("droneModal");
+        var span = document.getElementsByClassName("close")[0];
+        span.onclick = function() {
+            modal.style.display = "none";
+        }
+
+        window.onclick = function(event) {
+            if (event.target == modal) {
+                modal.style.display = "none";
+            }
+        }
+
+        function openDroneModal() {
+            modal.style.display = "block";
+            fetchDrones();
+        }
+
+        function fetchData() {
+            fetchDrones();
+            fetchDeliveries();
+        }
+
+        function fetchDrones() {
+            $.get('/drones', function(drones) {
+                const dronesList = $('#dronesList');
+                dronesList.empty();
+
+                drones.forEach(function(drone) {
+                    const row = $('<tr>');
+                    row.append($('<td>').text(drone.droneId));
+
+                    const statusText = drone.status === 'I_DRIFT' ? 'I DRIFT' :
+                        (drone.status === 'UDFASET' ? 'UDFASET' : 'UDE AF DRIFT');
+                    const statusBadge = $('<span>')
+                        .addClass('status-badge')
+                        .addClass(drone.status === 'I_DRIFT' ? 'status-i-drift' : 'status-ej-i-drift')
+                        .text(statusText);
+                    row.append($('<td>').append(statusBadge));
+
+                    let stationInfo = 'N/A';
+                    if (drone.station) {
+                        stationInfo = `${drone.station.name} - ID: ` +
+                            `${drone.station.id} `;
+                    }
+                    row.append($('<td>').text(stationInfo));
+                    row.append($('<td>').text(drone.uuid));
+
+
+                    row.append($('<td>').text(drone.ordersFulfilled));
+                    row.append($('<td>').text(drone.currentOrders));
+
+                    const actionCell = $('<td>');
+                    if (drone.status === 'I_DRIFT') {
+                        actionCell.append($('<button>')
+                            .addClass('btn btn-sm btn-warning mr-2')
+                            .text('Disable')
+                            .click(function() { disableDrone(drone.droneId); }));
+                    } else {
+                        actionCell.append($('<button>')
+                            .addClass('btn btn-sm btn-success mr-2')
+                            .text('Enable')
+                            .click(function() { enableDrone(drone.droneId); }));
+                    }
+                    if (drone.status !== 'UDFASET') {
+                        actionCell.append($('<button>')
+                            .addClass('btn btn-sm btn-danger')
+                            .text('Retire')
+                            .click(function () {
+                                retireDrone(drone.droneId);
+                            }));
+                    }
+                    row.append(actionCell);
+
+                    switch(drone.status) {
+                        case 'I_DRIFT':
+                            row.addClass('table-success');
+                            break;
+                        case 'UDFASET':
+                            row.addClass('table-dark');
+                            break;
+                        default:
+                            row.addClass('table-danger');
+                    }
+
+                    dronesList.append(row);
+                });
+            });
+        }
+
+        function fetchDeliveries() {
+            $.get('/deliveries/all', function(deliveries) {
+                const undeliveredList = $('#undeliveredList');
+                const deliveredList = $('#deliveredList');
+                undeliveredList.empty();
+                deliveredList.empty();
+
+                deliveries.forEach(function(delivery) {
+                    const row = $('<tr>');
+                    row.append($('<td>').text(delivery.deliveryId));
+                    row.append($('<td>').text(delivery.adresse));
+                    row.append($('<td>').text(new Date(delivery.expectedDelivery).toLocaleString()));
+
+                    if (delivery.actualDelivery) {
+                        row.append($('<td>').text(new Date(delivery.actualDelivery).toLocaleString()));
+                        row.append($('<td>').text(delivery.pizzaName));
+                        row.append($('<td>').text(delivery.droneId));
+                        deliveredList.append(row);
+                    } else {
+                        row.append($('<td>').text(delivery.pizzaName));
+                        row.append($('<td>').text(delivery.droneId || 'Not assigned'));
+
+                        const status = delivery.droneId ? 'Out for Delivery' : 'Awaiting Drone';
+                        row.append($('<td>').text(status));
+
+                        const actionCell = $('<td>');
+                        if (!delivery.droneId) {
+                            const assignBtn = $('<button>')
+                                .addClass('btn btn-sm btn-primary mr-2')
+                                .text('Assign Drone')
+                                .click(function() { assignDrone(delivery.deliveryId); });
+                            actionCell.append(assignBtn);
+                        } else {
+                            const completeBtn = $('<button>')
+                                .addClass('btn btn-sm btn-success')
+                                .text('Complete Delivery')
+                                .click(function() { completeDelivery(delivery.deliveryId); });
+                            actionCell.append(completeBtn);
+                        }
+
+                        row.append(actionCell);
+                        undeliveredList.append(row);
+                    }
+                });
+            });
+        }
+
+        function assignDrone(deliveryId) {
+            $.post('/deliveries/schedule', { deliveryId: deliveryId }, function(response) {
+                fetchData();
+            }).fail(function(error) {
+                alert('Failed to assign drone: ' + error.responseText);
+            });
+        }
+
+        function createDrone() {
+            $.post('/drones/add', function(response) {
+                fetchDrones();
+            }).fail(function(error) {
+                alert('Failed to create drone: ' + error.responseText);
+            });
+        }
+
+        function simulateOrder() {
+            $.post('/deliveries/simulate', function(response) {
+                fetchData();
+            }).fail(function(error) {
+                alert('Failed to simulate order: ' + error.responseText);
+            });
+        }
+
+        function completeDelivery(deliveryId) {
+            $.post('/deliveries/finish', { deliveryId: deliveryId }, function(response) {
+                fetchData();
+            }).fail(function(error) {
+                alert('Failed to complete delivery: ' + error.responseText);
+            });
+        }
+
+        function enableDrone(droneId) {
+            $.post('/drones/enable/'+ droneId, function(response) {
+                fetchDrones();
+            }).fail(function(error) {
+                alert('Failed to enable drone: ' + error.responseText);
+            });
+        }
+
+        function disableDrone(droneId) {
+            $.post('/drones/disable/' + droneId, function(response) {
+                fetchDrones();
+            }).fail(function(error) {
+                alert('Failed to disable drone: ' + error.responseText);
+            });
+        }
+
+        function retireDrone(droneId) {
+            $.post('/drones/retire/' + droneId, function(response) {
+                fetchDrones();
+            }).fail(function(error) {
+                alert('Failed to retire drone: ' + error.responseText);
+            });
+        }
+    });
+</script>
+</body>
+</html>
